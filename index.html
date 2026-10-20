@@ -151,11 +151,11 @@ body {
     <button type="button" data-run="help">help</button>
     <button type="button" data-run="disconnect">disconnect</button>
     <button type="button" data-run="shop">shop</button>
-    <button type="button" class="fill" data-fill="cat ">cat</button>
+    <button type="button" class="fill" data-run="cat">cat</button>
     <button type="button" class="fill" data-fill="crack ">crack</button>
     <button type="button" class="fill" data-fill="bypass ">bypass</button>
-    <button type="button" class="fill" data-fill="download ">download</button>
-    <button type="button" class="fill" data-fill="connect ">connect</button>
+    <button type="button" class="fill" data-run="download">download</button>
+    <button type="button" class="fill" data-run="connect">connect</button>
     <button type="button" data-hist="1">↑履歴</button>
   </nav>
   <div id="flash"></div>
@@ -664,8 +664,8 @@ function hud() {
 function flashApp(cls, ms) { const a = $('#app'); a.classList.remove(cls); void a.offsetWidth; a.classList.add(cls); setTimeout(() => a.classList.remove(cls), ms); }
 function progress(label) {
   [25, 55, 80, 100].forEach((p) => {
-    const n = Math.round(p / 5);
-    say(`${label} [${'█'.repeat(n)}${'░'.repeat(20 - n)}] ${p}%`, 'dim');
+    const n = Math.round(p / 10);
+    say(`${label} [${'█'.repeat(n)}${'░'.repeat(10 - n)}] ${p}%`, 'dim');
     pause(110);
   });
 }
@@ -912,7 +912,11 @@ CMD.connect = (a) => {
   if (S.done) { say('全ミッション完了。newgame yes で最初から遊べる。', 'warn'); return; }
   if (R.host) { say('すでに接続中。先に disconnect を実行。', 'warn'); return; }
   const name = norm(a[0]);
-  if (!name) { say('使い方: connect <ホスト名>', 'warn'); return; }
+  if (!name) {   // 引数なし：既知ホストをタップ式で表示
+    say('接続先を選ぶ(タップで実行):', 'info');
+    say(R.known.map((h) => lnk(h, 'connect ' + h)).join('  '));
+    return;
+  }
   if (!R.known.includes(name) || !STAGE().hosts[name]) { say(`ホスト ${esc(name)} は見つからない。`, 'err'); spend(2); return; }
   if (spend(COST.connect)) return;
   R.host = name; HS(); hud();
@@ -946,7 +950,12 @@ CMD.ls = () => {
 };
 
 CMD.cat = (a) => {
-  if (!a[0]) { say('使い方: cat <ファイル名>', 'warn'); return; }
+  if (!a[0]) {   // 引数なし：読めるファイルをタップ式で表示（追跡度は増えない）
+    const names = R.host ? H().files.filter(fileOk).map((f) => f.name) : ['ascii.txt', ...Object.keys(S.files)];
+    say('読むファイルを選ぶ(タップで実行):', 'info');
+    say(names.map((n) => lnk(n, 'cat ' + n)).join('  '));
+    return;
+  }
   if (!R.host) {   // ホームの手持ちファイル
     const n = Object.keys({ ...HOME_FILES, ...S.files }).find((k) => norm(k) === norm(a[0]));
     if (!n) { say('そのファイルは手元にない。(ls で確認)', 'err'); return; }
@@ -1017,11 +1026,19 @@ CMD.crack = (a) => {
   say(`PORT ${n} (${esc(p.svc)}) を開放した。`, 'ok');
   const fresh = h.files.filter((f) => fileOk(f) && !before.includes(f.name));
   if (fresh.length) say(`新たに読めるファイル: ${fresh.map((f) => lnk(f.name, 'cat ' + f.name)).join('  ')}`, 'info');
+  const tgt = h.files.find((f) => f.name === STAGE().target);
+  if (tgt && fileOk(tgt)) say('目標ファイルに手が届いた。download ボタンを押して、ファイル名をタップしよう。', 'warn');
 };
 
 CMD.download = (a) => {
   if (!needHost()) return;
-  if (!a[0]) { say('使い方: download <ファイル名>', 'warn'); return; }
+  if (!a[0]) {
+    // 引数なし：ダウンロードできるファイルをタップ式で表示（タップで実行）
+    const open = H().files.filter(fileOk);
+    say('ダウンロードできるファイル(タップで実行):', 'info');
+    say(open.length ? open.map((x) => lnk(x.name, 'download ' + x.name)).join('  ') : '(まだ解放されたファイルはない。ポートを突破しよう)');
+    return;
+  }
   const f = findFile(a[0]);
   if (!f) { say(`ファイル ${esc(a[0])} は存在しない。`, 'err'); spend(1); return; }
   if (!fileOk(f)) { denied(f); return; }
